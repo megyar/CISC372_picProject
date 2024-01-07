@@ -9,4 +9,4 @@ image_omp: image_omp.c image.h
 	gcc -g image_omp.c -o image_omp -lm -fopenmp
 
 clean:
-	rm -f image output.png
+	rm -f image output.png pthread image_omp
