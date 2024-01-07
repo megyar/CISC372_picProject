@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <time.h>
 #include <string.h>
-#include "image.h"
+#include "pthread.h"
 #include <pthread.h>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -59,17 +59,28 @@ uint8_t getPixelValue(Image* srcImage,int x,int y,int bit,Matrix algorithm){
 //            destImage: A pointer to a  pre-allocated (including space for the pixel array) structure to receive the convoluted image.  It should be the same size as srcImage
 //            algorithm: The kernel matrix to use for the convolution
 //Returns: Nothing
-void convolute(Image* srcImage,Image* destImage,Matrix algorithm){
+void *convolute(void* arg){
     int row,pix,bit,span;
+    struct arg_struct *args = arg;
+    Image* srcImage = args -> src_image;
+    Image* destImage = args -> dest_image;
+    long rank2 = args -> rank;
+    int start = (srcImage -> height / thread_count) * rank2;
+    int end = (srcImage -> height / thread_count) * (rank2 + 1) -1;
+    if(rank2 == thread_count){
+        end += (srcImage -> height % thread_count)+1;
+    }
     span=srcImage->bpp*srcImage->bpp;
-    for (row=0;row<srcImage->height;row++){
+    for (row = start; row < end; row++){
         for (pix=0;pix<srcImage->width;pix++){
             for (bit=0;bit<srcImage->bpp;bit++){
-                destImage->data[Index(pix,row,srcImage->width,bit,srcImage->bpp)]=getPixelValue(srcImage,pix,row,bit,algorithm);
+                destImage->data[Index(pix,row,srcImage->width,bit,srcImage->bpp)]=getPixelValue(srcImage,pix,row,bit,algorithms[args -> type]);
             }
         }
     }
+    free(arg);
 }
+
 
 //Usage: Prints usage information for the program
 //Returns: -1
@@ -124,11 +135,11 @@ int main(int argc,char** argv){
     long thread;
     for (thread = 0; thread < thread_count; thread++) {
 	    struct arg_struct *args = malloc(sizeof(struct arg_struct));
-	    arg->src_image = &srcImage;
-	    arg->dest_image = &destImage;
-	    arg->rank = thread;
-	    arg->type = type;
-	    pthread_create(&thread_handles[thread], NULL, convolute, arg);
+	    args->src_image = &srcImage;
+	    args->dest_image = &destImage;
+	    args->rank = thread;
+	    args->type = type;
+	    pthread_create(&thread_handles[thread], NULL, convolute, args);
     }
 
     for (thread = 0; thread < thread_count; thread++) {
